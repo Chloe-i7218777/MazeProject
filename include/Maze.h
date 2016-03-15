@@ -79,6 +79,7 @@ private:
   std::vector<std::vector<int>> m_cells;
 
   int indexSelect(int index);
+  void drawHorizontalWall(int width, int xCount, int zCount);
 
 public:
   Maze();
