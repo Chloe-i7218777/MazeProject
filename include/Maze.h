@@ -56,16 +56,29 @@ public:
 
 };
 
-class Maze
+class Model
+{
+protected:
+  std::vector<ngl::Vec3> m_verts;
+  std::unique_ptr<ngl::VertexArrayObject> m_vao;
+  void wheelEvent(const SDL_MouseWheelEvent &_event);
+  ngl::Vec3 m_modelPos;
+  ngl::Mat4 m_mouseGlobalTX;
+  ngl::Camera *m_camera;
+
+public:
+  Model();
+  void buildVAO();
+  void drawVAO(ngl::Camera *cam);
+};
+
+
+class Maze: public Model
 {
 private:
   std::vector<std::vector<int>> m_cells;
-  std::vector<ngl::Vec3> m_verts;
-  std::unique_ptr<ngl::VertexArrayObject> m_vao;
+
   int indexSelect(int index);
-  ngl::Vec3 m_modelPos;
-  void wheelEvent(const SDL_MouseWheelEvent &_event);
-  ngl::Mat4 m_mouseGlobalTX;
 
 public:
   Maze();

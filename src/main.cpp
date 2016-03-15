@@ -2,21 +2,21 @@
 #include "Maze.h"
 #include <ngl/Camera.h>
 #include <ngl/Transformation.h>
-#include "Shader.h"
+//#include "Shader.h"
 #include <ngl/NGLInit.h>
 #include <ngl/VAOPrimitives.h>
+#include <ngl/ShaderLib.h>
 
 void initialiseGL();
 
-int main(int argc, char *argv[])
+int main()
 {
-  std::cout << "hello" << std::endl;
-
 
   SDLOpenGL window("MAGICAL PLACE WHERE MAZES APPEAR (In construction)",0,0,1024,720);
 
   window.makeCurrent();
   initialiseGL();
+
   Maze test;
   Grid mazeGrid = test.generateGrowingTree(7,7,2);
 
@@ -60,6 +60,30 @@ void initialiseGL()
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_MULTISAMPLE);
 
+  ngl::ShaderLib *shader=ngl::ShaderLib::instance();
+  shader->use("nglColourShader");
+  shader->setRegisteredUniform4f("Colour",0.0,0.3,0.0,1);
+
+/*
+  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
+
+  shader->createShaderProgram("colour");
+
+  shader->attachShader("colourVertex", ngl::ShaderType::VERTEX);
+  shader->attachShader("colourFragment", ngl::ShaderType::FRAGMENT);
+
+  shader->loadShaderSource("colourVertex","shaders/ColourVertex.glsl");
+  shader->loadShaderSource("colourFragment","shaders/ColourFragment.glsl");
+
+  shader->compileShader("colourVertex");
+  shader->compileShader("colourFragment");
+
+  shader->attachShaderToProgram("colour", "colourVertex");
+  shader->attachShaderToProgram("colour", "colourFragment");
+
+  shader->linkProgramObject("colour");
+  shader->use("colour");
+*/
   // Now we will create a basic Camera from the graphics library
   // This is a static camera so it only needs to be set once
   // First create Values for the camera position
@@ -72,8 +96,8 @@ void initialiseGL()
   // The final two are near and far clipping planes of 0.5 and 10
   //cam.setShape(45,(float)720.0/576.0,0.001,150);
 
-  Shader color("shaders/ColourVertex.glsl",
-               "shaders/ColourFragment.glsl");
+  //Shader color("shaders/ColourVertex.glsl",
+    //           "shaders/ColourFragment.glsl");
   //cam.update();
 }
 
