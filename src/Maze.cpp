@@ -1,4 +1,4 @@
-#include "Maze.h"
+﻿#include "Maze.h"
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -163,10 +163,15 @@ void Model::drawVAO(ngl::Camera *cam)
   m_mouseGlobalTX.m_m[3][1] = m_modelPos.m_y;
   m_mouseGlobalTX.m_m[3][2] = m_modelPos.m_z;
 
-  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
+ /* ngl::ShaderLib *shader = ngl::ShaderLib::instance();
   (*shader)["nglColourShader"]->use();
   ngl::Mat4 MVP =m_mouseGlobalTX*cam->getVPMatrix();
-  shader->setShaderParamFromMat4("MVP", MVP);
+  shader->setShaderParamFromMat4("MVP", MVP);*/
+
+  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
+  ngl::Mat4 MVP =m_mouseGlobalTX*cam->getVPMatrix();
+  ngl::ShaderLib::instance()->setRegisteredUniform("MVP", MVP);
+
 
   m_vao->bind();
   m_vao->draw();
@@ -418,7 +423,7 @@ void Maze::generate3DMaze(Grid plan)
             flag=1;
           }
         }
-        else //Draw horizontal wall
+        else //If not, draw horizontal wall
         {
           if (flag)
           {
@@ -433,50 +438,23 @@ void Maze::generate3DMaze(Grid plan)
             flag=1;
           }
         }
-        if ((plan.getVal(row,col) & 2) != 0) //If EAST
+
+        if ((plan.getVal(row,col) & 2) != 0) //If EAST, draw horizontal wall
         {
-          if ((plan.getVal(row,col)  & 4) != 0) //If SOUTH or element to right is SOUTH, increment x counter
+          if (flag)
           {
-            if (flag)
-            {
-              drawHorizontalWall(1, xCount, zCount);
-              xCount+=1;
-              flag=0;
-            }
-            else
-            {
-              drawHorizontalWall(2, xCount, zCount);
-              xCount+=2;
-              flag=1;
-            }
-            /*if (flag)
-            {
-              xCount++;
-              flag=0;
-            }
-            else
-            {
-              xCount+=2;
-              flag=1;
-            }*/
+            drawHorizontalWall(1, xCount, zCount);
+            xCount+=1;
+            flag=0;
           }
-          else //Draw horizontal wall
+          else
           {
-            if (flag)
-            {
-              drawHorizontalWall(1, xCount, zCount);
-              xCount+=1;
-              flag=0;
-            }
-            else
-            {
-              drawHorizontalWall(2, xCount, zCount);
-              xCount+=2;
-              flag=1;
-            }
+            drawHorizontalWall(2, xCount, zCount);
+            xCount+=2;
+            flag=1;
           }
         }
-        else
+        else //If not, draw vertical wall
           {
               //Back face
               m_verts.push_back(ngl::Vec3(xCount,0,zCount-2));
@@ -534,7 +512,7 @@ void Maze::display3DMaze()
 {
   ngl::Camera camera;
 
-  camera.set(ngl::Vec3(10,50,30), ngl::Vec3(7,0,7), ngl::Vec3(0,1,0));
+  camera.set(ngl::Vec3(10,20,30), ngl::Vec3(7,0,7), ngl::Vec3(0,1,0));
   camera.setShape(45.0f, float(720.0/576.0), 0.5f, 100.0f);
 
   buildVAO();

@@ -11,6 +11,8 @@ HEADERS+=$$PWD/include/Maze.h
 
 
 #OTHER_FILES +=$$PWD/shaders/*.glsl
+OTHER_FILES+=$$PWD/shaders/DiffuseVertex.glsl \
+             $$PWD/shaders/DiffuseFragment.glsl
 
 QMAKE_CXXFLAGS += $$system(sdl2-config --cflags)
 LIBS+=$$system(sdl2-config --libs)

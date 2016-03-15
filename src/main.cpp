@@ -53,9 +53,30 @@ void initialiseGL()
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_MULTISAMPLE);
 
-  ngl::ShaderLib *shader=ngl::ShaderLib::instance();
+  /*ngl::ShaderLib *shader=ngl::ShaderLib::instance();
   shader->use("nglColourShader");
-  shader->setRegisteredUniform4f("Colour",0.0,0.3,0.0,1);
+  shader->setRegisteredUniform4f("Colour",0.0,0.3,0.0,1);*/
+
+  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
+  shader->createShaderProgram("diffuse");
+
+  shader->attachShader("diffuseVertex", ngl::ShaderType::VERTEX);
+  shader->attachShader("diffuseFragment", ngl::ShaderType::FRAGMENT);
+
+  shader->loadShaderSource("diffuseVertex","shaders/DiffuseVertex.glsl");
+  shader->loadShaderSource("diffuseFragment","shaders/DiffuseFragment.glsl");
+
+  shader->compileShader("diffuseVertex");
+  shader->compileShader("diffuseFragment");
+
+  shader->attachShaderToProgram("diffuse", "diffuseVertex");
+  shader->attachShaderToProgram("diffuse", "diffuseFragment");
+
+  shader->linkProgramObject("diffuse");
+  shader->use("diffuse");
+  shader->setRegisteredUniform("colour",1.0f,0.0f,1.0f,1.0f);
+  shader->setRegisteredUniform("lightPos",0.0f,5.0f,0.0f);
+  shader->setRegisteredUniform("lightDiffuse",1.0f,1.0f,1.0f,1.0f);
 }
 
 

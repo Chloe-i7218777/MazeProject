@@ -60,6 +60,7 @@ class Model
 {
 protected:
   std::vector<ngl::Vec3> m_verts;
+  std::vector<ngl::Vec3> m_vertNormals; //Better do somehting with this
   std::unique_ptr<ngl::VertexArrayObject> m_vao;
   void wheelEvent(const SDL_MouseWheelEvent &_event);
   ngl::Vec3 m_modelPos;
