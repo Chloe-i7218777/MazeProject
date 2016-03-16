@@ -10,30 +10,30 @@
 
 class SDLOpenGL
 {
-  private:
-    int m_width;
-    int m_height;
-    int m_x;
-    int m_y;
+private:
+  int m_width;
+  int m_height;
+  int m_x;
+  int m_y;
 
-    std::string m_name;
-    SDL_GLContext m_glContext;
-    SDL_Window *m_window;
+  std::string m_name;
+  SDL_GLContext m_glContext;
+  SDL_Window *m_window;
 
-    void init();
-    void createGLContext();
-    void errorExit(const std::string &_msg) const;
+  void init();
+  void createGLContext();
+  void errorExit(const std::string &_msg) const;
 
 
-  public:
-    SDLOpenGL(const std::string &_name,
-              int _x,
-              int _y,
-              int _width,
-              int _height);
-    void makeCurrent() const {SDL_GL_MakeCurrent(m_window, m_glContext); }
-    void swapWindow() const { SDL_GL_SwapWindow(m_window); }
-    void pollEvent(SDL_Event &_event);
+public:
+  SDLOpenGL(const std::string &_name,
+            int _x,
+            int _y,
+            int _width,
+            int _height);
+  void makeCurrent() const {SDL_GL_MakeCurrent(m_window, m_glContext); }
+  void swapWindow() const { SDL_GL_SwapWindow(m_window); }
+  void pollEvent(SDL_Event &_event);
 
 };
 
@@ -56,16 +56,29 @@ public:
 
 };
 
-class Model
+class Control
+{
+private:
+
+public:
+  Control();
+  void keyDownEvent(const SDL_KeyboardEvent &event);
+
+};
+
+class Model: public Control
 {
 protected:
   std::vector<ngl::Vec3> m_verts;
-  std::vector<ngl::Vec3> m_vertNormals; //Better do somehting with this
+  std::vector<ngl::Vec3> m_vertNormals;
   std::unique_ptr<ngl::VertexArrayObject> m_vao;
-  void wheelEvent(const SDL_MouseWheelEvent &_event);
   ngl::Vec3 m_modelPos;
   ngl::Mat4 m_mouseGlobalTX;
   ngl::Camera *m_camera;
+
+  void wheelEvent(const SDL_MouseWheelEvent &_event);
+  // void setNormal(int normal);
+  void loadMatricesToShader(ngl::Camera *cam);
 
 public:
   Model();
@@ -90,5 +103,7 @@ public:
   void display3DMaze();
 
 };
+
+
 
 #endif

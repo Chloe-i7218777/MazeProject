@@ -11,5 +11,5 @@ void main()
     fragmentColour=vec4(0.0);
     vec3 N = normalize(fragmentNormal);
     vec3 L = normalize(lightPos);
-    fragmentColour+=colour*lightDiffuse*L; //*dot(L,N);
+    fragmentColour+=colour*lightDiffuse*dot(L,N);
 }

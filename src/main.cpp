@@ -16,7 +16,7 @@ int main()
   initialiseGL();
 
   Maze test;
-  Grid mazeGrid = test.generateGrowingTree(7,7,2);
+  Grid mazeGrid = test.generateGrowingTree(15,15,2);
 
   test.generate3DMaze(mazeGrid);
 
@@ -28,15 +28,16 @@ int main()
     switch(event.type)
     {
       case SDL_QUIT : quit=true; break;
-      case SDL_KEYDOWN :
-        {
-          switch (event.key.keysym.sym)
-          {
-            case SDLK_ESCAPE : quit=true; break;
-            case SDLK_w : glPolygonMode(GL_FRONT_AND_BACK,GL_LINE); break;
-            case SDLK_s : glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); break;
-          }
-        }
+      //case SDL_KEYDOWN : test.keyDownEvent(event.key); break;
+      //case SDL_KEYUP : test.keyUpEvent(event.key; break;)
+    {
+      switch (event.key.keysym.sym)
+      {
+      case SDLK_ESCAPE : quit=true; break;
+      case SDLK_w : glPolygonMode(GL_FRONT_AND_BACK,GL_LINE); break;
+      case SDLK_s : glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); break;
+      }
+    }
     }
     test.display3DMaze();
     window.swapWindow();
@@ -52,10 +53,6 @@ void initialiseGL()
 
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_MULTISAMPLE);
-
-  /*ngl::ShaderLib *shader=ngl::ShaderLib::instance();
-  shader->use("nglColourShader");
-  shader->setRegisteredUniform4f("Colour",0.0,0.3,0.0,1);*/
 
   ngl::ShaderLib *shader = ngl::ShaderLib::instance();
   shader->createShaderProgram("diffuse");
@@ -75,7 +72,7 @@ void initialiseGL()
   shader->linkProgramObject("diffuse");
   shader->use("diffuse");
   shader->setRegisteredUniform("colour",1.0f,0.0f,1.0f,1.0f);
-  shader->setRegisteredUniform("lightPos",0.0f,5.0f,0.0f);
+  shader->setRegisteredUniform("lightPos",5.0f,11.0f,5.0f);
   shader->setRegisteredUniform("lightDiffuse",1.0f,1.0f,1.0f,1.0f);
 }
 
