@@ -6,8 +6,11 @@
 #include <time.h>
 #include <ngl/ShaderLib.h>
 #include <ngl/Transformation.h>
+#include <cmath>
+#include <vector>
+#include <ngl/Texture.h>
+#include <ngl/Material.h>
 
-const static float ZOOM=0.1;
 
 SDLOpenGL::SDLOpenGL(const std::string &_name,
                      int _x,
@@ -67,32 +70,7 @@ void SDLOpenGL::pollEvent(SDL_Event &_event)
   SDL_PollEvent(&_event);
 }
 
-void Model::wheelEvent(const SDL_MouseWheelEvent &_event)
-{/*
-  if(_event.y>0)
-  {
-    m_modelPos.m_z+=ZOOM;
-    this->drawVAO(m_camera);
-
-  }
-  else if (_event.y<0)
-  {
-    m_modelPos.m_z-=ZOOM;
-    this->drawVAO(m_camera);
-  }
-
-  if(_event.x>0)
-  {
-    m_modelPos.m_z-=ZOOM;
-    this->drawVAO(m_camera);
-  }
-  else if (_event.x<0)
-  {
-    m_modelPos.m_z+=ZOOM;
-    this->drawVAO(m_camera);
-  }*/
-}
-
+/////////////////////////////////////////////////////////
 
 Grid::Grid(int width, int height)
 {
@@ -136,9 +114,206 @@ void Grid::print()
   std::cout<<"]";
 }
 
+/////////////////////////////////////////////////////////
+
+Control::Control()
+{
+
+}
+
+float Control::checkDistance(ngl::Vec3 pointA, ngl::Vec3 pointB)
+{
+  ngl::Vec3 distVec(pointA-pointB);
+
+  float distance= sqrt(fabs(distVec[0]*distVec[0]) + fabs(distVec[2]*distVec[2]));
+
+  return distance;
+}
+
+bool Control::collisionDetect(ngl::BBox A, ngl::BBox B)
+{
+  bool collision = 0;
+
+  if ((B.minX()>=A.minX() && B.minX()<=A.maxX()) || (B.maxX()>=A.minX() && B.maxX()<=A.maxX()))
+  {
+   // std::cout<<"B min and max X is "<<B.minX()<<", "<<B.maxX()<<", A min and max X is"<<A.minX()<<", "<<A.maxX()<<std::endl;
+    if ((B.minZ()>=A.minZ() && B.minZ()<=A.maxZ()) || (B.maxZ()>=A.minZ() && B.maxZ()<=A.maxZ()))
+    {
+      collision = 1;
+    }
+  }
+  return collision;
+}
+
+bool Control::checkCollisions(std::vector<ngl::BBox> objList, ngl::BBox otherObj)
+{
+  for (int i=0; i<int(objList.size()); i++)
+  {
+    ngl::Vec3 wallCentre(((objList[i].maxX()-objList[i].minX())/2)+objList[i].minX(), ((objList[i].maxY()-objList[i].minY())/2)+objList[i].minY(), ((objList[i].maxZ()-objList[i].minZ())/2)+objList[i].minZ());
+    objList[i].setCenter(wallCentre);
+    //ngl::Vec3 distVec(wallCentre-otherObj.center());
+
+    //float distance= sqrt(fabs(distVec[0]*distVec[0]) + fabs(distVec[2]*distVec[2]));
+
+    float distance= checkDistance(objList[i].center(), otherObj.center());
+
+   // std::cout<<"distance: "<<distance<<"\n\n";
+
+    if (distance<= 3 || i<=1)
+    {
+      if (collisionDetect(objList[i], otherObj))
+      {
+        //std::cout<<"collision:"<<collisionDetect(objList[i], otherObj)<<"\n";
+        return i+1;
+      }
+    }
+  }
+  return 0;
+}
+
+void Control::keyDownEvent(Model *maze, const SDL_KeyboardEvent &event, ngl::Camera *camera)
+{
+  float forward=-0.08, right=1.5, left=-1.5;
+
+  ngl::BBox camBBox(camera->getEye()[0]-0.65, camera->getEye()[0]+0.65, camera->getEye()[1]-0.65, camera->getEye()[1]+0.65, camera->getEye()[2]-0.65, camera->getEye()[2]+0.65);
+  camBBox.setCenter(ngl::Vec3(camera->getEye()[0], camera->getEye()[1], camera->getEye()[2]), 1);
+
+  switch (event.keysym.sym)
+  {
+    case SDLK_UP :
+    {
+      ngl::Vec3 look(camera->getEye()[0]- camera->getN()[0], 0.5,camera->getEye()[2]- camera->getN()[2]);
+      if (camera->getN()[0]==1)
+      {
+        look[2]=camera->getEye()[2];
+      }
+      else if (camera->getN()[2]==-1)
+      {
+        look[0]= camera->getEye()[0];
+      }
+      ngl::BBox lookBBox(look[0]-0.3, look[0]+0.3, 0.0, 1.0, look[2]-0.3, look[2]+0.3);
+      lookBBox.setCenter(look);
+
+      int BBoxIndex= checkCollisions(maze->m_BBoxes, camBBox);
+
+      if (!BBoxIndex)
+      {
+        camera->slide(0,0,forward);
+      }
+
+      else if (!checkCollisions(maze->m_BBoxes, lookBBox))
+      {
+        camera->slide(0,0,forward);
+      }
+
+      break;
+    }
+    case SDLK_LEFT : camera->yaw(left); break;
+    case SDLK_RIGHT : camera->yaw(right); break;
+  }
+}
+
+/////////////////////////////////////////////////////////
+
 Model::Model()
 {
 
+}
+
+Model::Model(std::vector<ngl::Vec3> vertList, std::vector<ngl::Vec3> vertNormals, std::string shader)
+{
+  m_verts = vertList;
+  m_vertNormals = vertNormals;
+  m_shader = shader;
+}
+
+Model::Model(std::vector<ngl::Vec3> vertList, std::vector<ngl::Vec3> vertNormals, std::vector<ngl::Vec2> UVs, std::vector<ngl::BBox> BBoxes, std::string shader)
+{
+  m_verts = vertList;
+  m_vertNormals = vertNormals;
+  m_UVs= UVs;
+  m_BBoxes = BBoxes;
+  m_shader = shader;
+}
+
+/*float Model::checkDistance(ngl::Vec3 pointA, ngl::Vec3 pointB)
+{
+  ngl::Vec3 distVec(pointA-pointB);
+
+  float distance= sqrt(fabs(distVec[0]*distVec[0]) + fabs(distVec[2]*distVec[2]));
+
+  return distance;
+}*/
+
+void Model::loadMatricesToShader(ngl::Camera *cam)
+{
+  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
+  shader->use(m_shader);
+  //shader->use("TextureShader");
+  ngl::Mat4 MVP =/*m_mouseGlobalTX**/cam->getVPMatrix();
+  //shader->setShaderParamFromMat4("MVP",MVP);
+  ngl::ShaderLib::instance()->setRegisteredUniform("MVP", MVP);
+}
+
+/*bool Model::collisionDetect(ngl::BBox A, ngl::BBox B)
+{
+  bool collision = 0;
+
+  if ((B.minX()>=A.minX() && B.minX()<=A.maxX()) || (B.maxX()>=A.minX() && B.maxX()<=A.maxX()))
+  {
+   // std::cout<<"B min and max X is "<<B.minX()<<", "<<B.maxX()<<", A min and max X is"<<A.minX()<<", "<<A.maxX()<<std::endl;
+    if ((B.minZ()>=A.minZ() && B.minZ()<=A.maxZ()) || (B.maxZ()>=A.minZ() && B.maxZ()<=A.maxZ()))
+    {
+      collision = 1;
+    }
+  }
+  return collision;
+}
+
+bool Model::checkCollisions(std::vector<ngl::BBox> objList, ngl::BBox otherObj)
+{
+  for (int i=0; i<int(objList.size()); i++)
+  {
+    ngl::Vec3 wallCentre(((objList[i].maxX()-objList[i].minX())/2)+objList[i].minX(), ((objList[i].maxY()-objList[i].minY())/2)+objList[i].minY(), ((objList[i].maxZ()-objList[i].minZ())/2)+objList[i].minZ());
+    objList[i].setCenter(wallCentre);
+    //ngl::Vec3 distVec(wallCentre-otherObj.center());
+
+    //float distance= sqrt(fabs(distVec[0]*distVec[0]) + fabs(distVec[2]*distVec[2]));
+
+    float distance= checkDistance(objList[i].center(), otherObj.center());
+
+   // std::cout<<"distance: "<<distance<<"\n\n";
+
+    if (distance<= 3 || i<=1)
+    {
+      if (collisionDetect(objList[i], otherObj))
+      {
+        //std::cout<<"collision:"<<collisionDetect(objList[i], otherObj)<<"\n";
+        return i+1;
+      }
+    }
+  }
+  return 0;
+}*/
+
+void Model::addVert(ngl::Vec3 point)
+{
+  m_verts.push_back(point);
+}
+
+void Model::addNormal(ngl::Vec3 normal)
+{
+  m_vertNormals.push_back(normal);
+}
+
+void Model::addBBox(ngl::BBox BBox)
+{
+  m_BBoxes.push_back(BBox);
+}
+
+void Model::assignShader(std::string shader)
+{
+  m_shader = shader;
 }
 
 void Model::buildVAO()
@@ -147,16 +322,19 @@ void Model::buildVAO()
 
   m_vao->bind();
 
+  //Set vertices
   m_vao->setData((m_verts.size())*sizeof(ngl::Vec3),m_verts[0].m_x);
-
   m_vao->setVertexAttributePointer(0,3,GL_FLOAT,0,0);
-
   m_vao->setNumIndices(m_verts.size());
 
+  //Set UVs
+  m_vao->setData((m_UVs.size())*sizeof(ngl::Vec2),m_UVs[0].m_x);
+  m_vao->setVertexAttributePointer(1,2,GL_FLOAT,0,0);
+  m_vao->setNumIndices(m_verts.size());
+
+  //Set normals
   m_vao->setData((m_vertNormals.size())*sizeof(ngl::Vec3),m_vertNormals[0].m_x);
-
   m_vao->setVertexAttributePointer(2,3,GL_FLOAT,0,0);
-
   m_vao->setNumIndices(m_vertNormals.size());
 
   m_vao->unbind();
@@ -164,103 +342,237 @@ void Model::buildVAO()
 
 void Model::drawVAO(ngl::Camera *cam)
 {
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  m_mouseGlobalTX.m_m[3][0] = m_modelPos.m_x;
+ /* m_mouseGlobalTX.m_m[3][0] = m_modelPos.m_x;
   m_mouseGlobalTX.m_m[3][1] = m_modelPos.m_y;
-  m_mouseGlobalTX.m_m[3][2] = m_modelPos.m_z;
+  m_mouseGlobalTX.m_m[3][2] = m_modelPos.m_z;*/
 
   loadMatricesToShader(cam);
-
   m_vao->bind();
   m_vao->draw();
   m_vao->unbind();
 }
 
-void Model::loadMatricesToShader(ngl::Camera *cam)
+/*void Model::keyDownEvent(const SDL_KeyboardEvent &event, ngl::Camera *camera)
 {
-  ngl::ShaderLib *shader = ngl::ShaderLib::instance();
-  ngl::Mat4 MVP =m_mouseGlobalTX*cam->getVPMatrix();
-  ngl::ShaderLib::instance()->setRegisteredUniform("MVP", MVP);
+  float forward=-0.08, right=1.5, left=-1.5;
+
+  ngl::BBox camBBox(camera->getEye()[0]-0.65, camera->getEye()[0]+0.65, camera->getEye()[1]-0.65, camera->getEye()[1]+0.65, camera->getEye()[2]-0.65, camera->getEye()[2]+0.65);
+  camBBox.setCenter(ngl::Vec3(camera->getEye()[0], camera->getEye()[1], camera->getEye()[2]), 1);
+
+ // std::cout<<"Min and max z: "<<camBBox.minZ()<<", "<<camBBox.maxZ()<<std::endl;
+ // std::cout<<"width: "<<camBBox.width()<<std::endl;
+
+  switch (event.keysym.sym)
+  {
+    case SDLK_UP :
+    {
+      ngl::Vec3 look(camera->getEye()[0]- camera->getN()[0], 0.5,camera->getEye()[2]- camera->getN()[2]);
+      if (camera->getN()[0]==1)
+      {
+        look[2]=camera->getEye()[2];
+      }
+      else if (camera->getN()[2]==-1)
+      {
+        look[0]= camera->getEye()[0];
+      }
+      ngl::BBox lookBBox(look[0]-0.3, look[0]+0.3, 0.0, 1.0, look[2]-0.3, look[2]+0.3);
+      lookBBox.setCenter(look);
+
+      int BBoxIndex= checkCollisions(m_BBoxes, camBBox);*/
+
+     /* std::cout<<"Eye: "<<"\n";
+      for (int i=0; i<4; i++)
+      {
+        std::cout<<camera->getEye()[i]<<", "<<"\n";
+      }
+      std::cout<<"\n";
+
+      std::cout<<"Look: "<<"\n";
+      for (int i=0; i<4; i++)
+      {
+        std::cout<<look[i]<<", "<<"\n";
+      }
+      std::cout<<"\n";*/
+/*
+      if (!BBoxIndex)
+      {
+        camera->slide(0,0,forward);
+      }
+
+      else if (!checkCollisions(m_BBoxes, lookBBox))
+      {
+        camera->slide(0,0,forward);
+      }*/
+
+
+/*
+      else if (fabs(camera->getN()[0])<fabs(camera->getN()[2]))
+      {
+        camera->slide(0,0,-forward);
+
+        if (camera->getN()[0]<camera->getN()[2])
+        {
+          camera->move(0,0,forward);
+        }
+        else
+        {
+          camera->move(0,0, -forward);
+        }
+
+        ngl::Vec3 closestPoint;
+
+        if (checkDistance(m_BBoxes[BBoxIndex-1].minX(), look) <= checkDistance(m_BBoxes[BBoxIndex-1].maxX(), look))
+        {
+          closestPoint = m_BBoxes[BBoxIndex-1].minX();
+        }
+        else if (checkDistance(m_BBoxes[BBoxIndex-1].minX(), look) >= checkDistance(m_BBoxes[BBoxIndex-1].maxX(), look))
+        {
+          closestPoint = m_BBoxes[BBoxIndex-1].maxX();
+        }
+        else if (checkDistance(m_BBoxes[BBoxIndex-1].minZ(), look) <= checkDistance(m_BBoxes[BBoxIndex-1].maxZ(), look))
+        {
+          closestPoint = m_BBoxes[BBoxIndex-1].minZ();
+        }
+        else if (checkDistance(m_BBoxes[BBoxIndex-1].minZ(), look) >= checkDistance(m_BBoxes[BBoxIndex-1].maxZ(), look))
+        {
+          closestPoint = m_BBoxes[BBoxIndex-1].maxZ();
+        }
+
+        ngl::Vec3 aimVec(fabs(closestPoint[0]-look[0]), 0.5, fabs(closestPoint[2]-look[2]));
+        float X = (aimVec*0.01)[0];
+        float Y = 0.0;
+        float Z = (aimVec*0.01)[2];
+        //camera->slide(X,Y,Z);
+        camera->moveEye(X, Y, Z);
+        //ngl::Vec3 newLook(camera->getEye()[0]+aimVec[0], 0.5, camera->getEye()[2]+aimVec[2]);
+        //camera->setLook(newLook);
+      }
+
+
+     // camera->slide(0.0,0.0,-forward*2);
+
+
+      }
+      else if (fabs(camera->getN()[0])>fabs(camera->getN()[2]))
+      {
+        camera->slide(0,0,-forward);
+        if (camera->getN()[0]>camera->getN()[2])
+        {
+        camera->move(forward,0,0);
+        }
+        else
+        {
+          camera->move(-forward,0,0);
+        }
+      }*/
+
+/*
+      break;
+    }
+    case SDLK_LEFT : camera->yaw(left); break;
+    case SDLK_RIGHT : camera->yaw(right); break;
+  }
+}*/
+
+/////////////////////////////////////////////////////////
+
+GameObject::GameObject()
+{
+
 }
 
-Maze::Maze()
+GameObject::GameObject(float x, float y, float z)
+{
+  m_posX=x;
+  m_posY=y;
+  m_posZ=z;
+}
+
+void GameObject::setPos(float x, float y, float z)
+{
+  m_posX=x;
+  m_posY=y;
+  m_posZ=z;
+}
+
+ngl::Vec3 GameObject::getPos()
+{
+  return ngl::Vec3(m_posX, m_posY, m_posZ);
+}
+
+float GameObject::getPosX()
+{
+  return m_posX;
+}
+
+float GameObject::getPosY()
+{
+  return m_posY;
+}
+
+float GameObject::getPosZ()
+{
+  return m_posY;
+}
+
+/////////////////////////////////////////////////////////
+
+Character::Character()
 {
 
 }
 
-void Maze::drawHorizontalWall(int width, int xCount, int zCount)
+void Character::setHealth(float health)
 {
-  //Back face
-  m_verts.push_back(ngl::Vec3(xCount,0,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount));
+  m_health=health;
+}
 
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount));
+void Character::changeHealth(float health)
+{
+  m_health+=health;
+}
 
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(0,0,-1));
-  }
+float Character::getHealth()
+{
+  return m_health;
+}
 
-  //Front face
-  m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount+1));
+/////////////////////////////////////////////////////////
 
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount+1));
+Player::Player()
+{
 
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(0,0,1));
-  }
+}
 
-  //Left face
-  m_verts.push_back(ngl::Vec3(xCount,0,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
+Player::Player(ngl::Vec3 pos)
+{
+  m_cam.set(pos, ngl::Vec3(0.0), ngl::Vec3(0,1,0));
 
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
+  setPos(pos[0], pos[1], pos[2]);
 
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(-1,0,0));
-  }
+  setDefaultShape();
+}
 
-  //Right face
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount+1));
+Player::Player(ngl::Vec3 pos, ngl::Vec3 look, ngl::Vec3 up)
+{
+  m_cam.set(pos, look, up);
 
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount+width,0,zCount+1));
+  setPos(pos[0], pos[1], pos[2]);
 
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(1,0,0));
-  }
+  setDefaultShape();
+}
 
-  //Top face
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount+1));
+void Player::setDefaultShape()
+{
+  m_cam.setShape(30.0f, float(1024.0/720.0), 0.5f, 100.0f);
+}
 
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount));
-  m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-  m_verts.push_back(ngl::Vec3(xCount+width,1,zCount+1));
+/////////////////////////////////////////////////////////
 
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(0,1,0));
-  }
-
+Maze::Maze(int width, int height)
+{
+  m_width= width;
+  m_height= height;
 }
 
 int Maze::indexSelect(int index)
@@ -284,6 +596,7 @@ int Maze::indexSelect(int index)
   {
     newIndex=Newest;
   }
+
   else if (index==2)
   {
     newIndex=Random;
@@ -292,14 +605,94 @@ int Maze::indexSelect(int index)
   return newIndex;
 }
 
-void Maze::display2DMaze(Grid plan)
+void Maze::drawHorizontalWall(int width, int xCount, int zCount)
 {
+  m_maze.addBBox(ngl::BBox(xCount, xCount+width, 0.0, 1.0, zCount, zCount+1));
 
+  //Back face
+  m_maze.addVert(ngl::Vec3(xCount,0,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount));
+
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount));
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(0,0,-1));
+  }
+
+  //Front face
+  m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount+1));
+
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount+1));
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(0,0,1));
+  }
+
+  //Left face
+  m_maze.addVert(ngl::Vec3(xCount,0,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
+
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(-1,0,0));
+  }
+
+  //Right face
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount+1));
+
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount+width,0,zCount+1));
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(1,0,0));
+  }
+
+  //Top face
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount+1));
+
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount));
+  m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+  m_maze.addVert(ngl::Vec3(xCount+width,1 ,zCount+1));
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(0,1,0));
+  }
 }
 
-Grid Maze::generateGrowingTree(int width, int height, int selMethod)
+int Maze::Width()
 {
-  Grid mazePlan(width,height);
+  return m_width;
+}
+
+int Maze::Height()
+{
+  return m_height;
+}
+
+Grid Maze::generateGrowingTree(int selMethod)
+{
+  Grid mazePlan(m_width, m_height);
   srand (time(NULL));
 
   //Pick a random element
@@ -403,100 +796,212 @@ Grid Maze::generateGrowingTree(int width, int height, int selMethod)
   return mazePlan;
 }
 
-void Maze::generate3DMaze(Grid plan)
+void Maze::generateMaze(Grid plan)
 {
-  int width = plan.getWidth()*3+1;
-  int height = plan.getHeight()*3+1;
+  m_width = plan.getWidth()*3+1;
+  m_height = plan.getHeight()*3+1;
+
+  //std::vector<ngl::BBox> mazeBBoxes = { ngl::BBox(0.0, float(width), 0.0, 1.0, 0.0, 1.0 ),
+                                       // ngl::BBox(0.0, 1.0, 0.0, 1.0, 1.0, float(height))};
+
+  m_maze.addBBox(ngl::BBox(0.0, float(m_width), 0.0, 1.0, 0.0, 1.0 ));
+  m_maze.addBBox(ngl::BBox(ngl::BBox(0.0, 1.0, 0.0, 1.0, 1.0, float(m_height))));
+
+  m_maze.assignShader(std::string("diffuse"));
+
+  /*std::vector<ngl::Vec3> mazeVerts = { //Top wall of the maze
+
+                                       //Left face
+                                       {0,0,1}, {0,1 ,0}, {0,0,0},
+                                       {0,0,1}, {0,1 ,0}, {0,1 ,1},
+
+                                       //Top face
+                                       {0,1 ,0}, {0,1 ,1}, {float(width),1 ,0},
+                                       {0,1 ,1}, {float(width),1 ,0}, {float(width),1 ,1},
+
+                                       //Right face
+                                       {float(width),1 ,0},{float(width),1 ,1}, {float(width),0,1},
+                                       {float(width),1 ,0},{float(width),0,0}, {float(width),0,1},
+
+                                       //Back face
+                                       {0,0,0},{0,1 ,0}, {float(width),0,0},
+                                       {0,1 ,0},{float(width),1 ,0}, {float(width),0,0},
+
+                                       //Front face
+                                       {0,0,1}, {0,1 ,1}, {float(width),0,1},
+                                       {0,1 ,1}, {float(width),1 ,1}, {float(width),0,1},
 
 
-  m_verts={//Top wall of the maze
+                                       //Left wall of the maze
 
-           //Left face
-           {0,0,1}, {0,1,0}, {0,0,0},
-           {0,0,1}, {0,1,0}, {0,1,1},
+                                       //Left face
+                                       {0,0,1}, {0,1 ,1}, {0,0,float(height)},
+                                       {0,0,float(height)}, {0,1 ,0}, {0,1 ,float(height)},
 
-           //Top face
-           {0,1,0}, {0,1,1}, {float(width),1,0},
-           {0,1,1}, {float(width),1,0}, {float(width),1,1},
+                                       //Top face
+                                       {0,1 ,1}, {1,1 ,1}, {0,1 ,float(height)},
+                                       {0,1 ,float(height)}, {1,1 ,float(height)}, {1,1 ,1},
 
-           //Right face
-           {float(width),1,0},{float(width),1,1}, {float(width),0,1},
-           {float(width),1,0},{float(width),0,0}, {float(width),0,1},
+                                       //Front face
+                                       {0,0,float(height)}, {1,0,float(height)}, {0,1 ,float(height)},
+                                       {1,1 ,float(height)}, {1,0,float(height)}, {0,1 ,float(height)},
 
-           //Back face
-           {0,0,0},{0,1,0}, {float(width),0,0},
-           {0,1,0},{float(width),1,0}, {float(width),0,0},
-
-           //Front face
-           {0,0,1}, {0,1,1}, {float(width),0,1},
-           {0,1,1}, {float(width),1,1}, {float(width),0,1},
+                                       //Right face
+                                       {1,1 ,1}, {1,0,1}, {1,1 ,float(height)},
+                                       {1,1 ,float(height)}, {1,0,1}, {1,0,float(height)},
 
 
-           //Left wall of the maze
+                                       //Ground plane
 
-           //Left face
-           {0,0,1}, {0,1,1}, {0,0,float(height)},
-           {0,0,float(height)}, {0,1,0}, {0,1,float(height)},
+                                       {1,0,1}, {float(width)-1,0,1}, {1,0, float(height)-1},
+                                       {float(width-1),0,float(height-1)}, {float(width)-1,0,1}, {1,0, float(height)-1}
+                                      };*/
 
-           //Top face
-           {0,1,1}, {1,1,1}, {0,1,float(height)},
-           {0,1,float(height)}, {1,1,float(height)}, {1,1,1},
+  //Top wall of the maze
 
-           //Front face
-           {0,0,float(height)}, {1,0,float(height)}, {0,1,float(height)},
-           {1,1,float(height)}, {1,0,float(height)}, {0,1,float(height)},
+  //Left face
+  m_maze.addVert(ngl::Vec3(0,0,1));
+  m_maze.addVert(ngl::Vec3(0,1,0));
+  m_maze.addVert(ngl::Vec3(0,0,0));
 
-           //Right face
-           {1,1,1}, {1,0,1}, {1,1,float(height)},
-           {1,1,float(height)}, {1,0,1}, {1,0,float(height)},
-          };
+  m_maze.addVert(ngl::Vec3(0,0,1));
+  m_maze.addVert(ngl::Vec3(0,1,0));
+  m_maze.addVert(ngl::Vec3(0,1,1));
+
+  //Top face
+  m_maze.addVert(ngl::Vec3(0,1,0));
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,0));
+
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,1));
+
+  //Right face
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,1));
+
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,1));
+
+  //Back face
+  m_maze.addVert(ngl::Vec3(0,0,0));
+  m_maze.addVert(ngl::Vec3(0,1,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,0));
+
+  m_maze.addVert(ngl::Vec3(0,0,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,0));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,0));
+
+  //Front face
+  m_maze.addVert(ngl::Vec3(0,0,1));
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,1));
+
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),1 ,1));
+  m_maze.addVert(ngl::Vec3(float(m_width),0 ,1));
+
+  //Left wall of the maze
+
+  //Left face
+  m_maze.addVert(ngl::Vec3(0,0,1));
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(0,0,float(m_height)));
+
+  m_maze.addVert(ngl::Vec3(0,0,float(m_height)));
+  m_maze.addVert(ngl::Vec3(0,1,0));
+  m_maze.addVert(ngl::Vec3(0,1,float(m_height)));
+
+  //Top face
+  m_maze.addVert(ngl::Vec3(0,1,1));
+  m_maze.addVert(ngl::Vec3(1,1,1));
+  m_maze.addVert(ngl::Vec3(0,1,float(m_height)));
+
+  m_maze.addVert(ngl::Vec3(0,1,float(m_height)));
+  m_maze.addVert(ngl::Vec3(1,1,float(m_height)));
+  m_maze.addVert(ngl::Vec3(1,1,1));
+
+  //Front face
+  m_maze.addVert(ngl::Vec3(0,0,float(m_height)));
+  m_maze.addVert(ngl::Vec3(1,0,float(m_height)));
+  m_maze.addVert(ngl::Vec3(0,1,float(m_height)));
+
+  m_maze.addVert(ngl::Vec3(1,1,float(m_height)));
+  m_maze.addVert(ngl::Vec3(1,0,float(m_height)));
+  m_maze.addVert(ngl::Vec3(0,1,float(m_height)));
+
+  //Right face
+  m_maze.addVert(ngl::Vec3(1,1,1));
+  m_maze.addVert(ngl::Vec3(1,0,1));
+  m_maze.addVert(ngl::Vec3(1,1,float(m_height)));
+
+  m_maze.addVert(ngl::Vec3(1,1,float(m_height)));
+  m_maze.addVert(ngl::Vec3(1,0,1));
+  m_maze.addVert(ngl::Vec3(1,0,float(m_height)));
+
+  //Ground plane
+
+  m_maze.addVert(ngl::Vec3(1,0,1));
+  m_maze.addVert(ngl::Vec3(float(m_width)-1,0,1));
+  m_maze.addVert(ngl::Vec3(1,0, float(m_height)-1));
+
+  m_maze.addVert(ngl::Vec3(float(m_width-1),0,float(m_height-1)));
+  m_maze.addVert(ngl::Vec3(float(m_width)-1,0,1));
+  m_maze.addVert(ngl::Vec3(1,0, float(m_height)-1));
+
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(-1,0,0));
+    m_maze.addNormal(ngl::Vec3(-1,0,0));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(0,1,0));
+    m_maze.addNormal(ngl::Vec3(0,1,0));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(1,0,0));
+    m_maze.addNormal(ngl::Vec3(1,0,0));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(0,0,-1));
+    m_maze.addNormal(ngl::Vec3(0,0,-1));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(0,0,1));
-  }
-
-
-  for (int i=0;i<6;i++)
-  {
-    m_vertNormals.push_back(ngl::Vec3(-1,0,0));
+    m_maze.addNormal(ngl::Vec3(0,0,1));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(0,1,0));
+    m_maze.addNormal(ngl::Vec3(-1,0,0));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(0,0,1));
+    m_maze.addNormal(ngl::Vec3(0,1,0));
   }
 
   for (int i=0;i<6;i++)
   {
-    m_vertNormals.push_back(ngl::Vec3(1,0,0));
+    m_maze.addNormal(ngl::Vec3(0,0,1));
   }
 
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(1,0,0));
+  }
+
+  for (int i=0;i<6;i++)
+  {
+    m_maze.addNormal(ngl::Vec3(0,1,0));
+  }
 
   int xCount=1, zCount=0;
 
@@ -553,74 +1058,78 @@ void Maze::generate3DMaze(Grid plan)
       }
       else //If not, draw vertical wall
       {
-        //Back face
-        m_verts.push_back(ngl::Vec3(xCount,0,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount-2));
+        m_maze.addBBox(ngl::BBox(xCount, xCount+1, 0.0, 1.0, zCount-2, zCount+1));
 
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount-2));
+        //Back face
+        m_maze.addVert(ngl::Vec3(xCount,0,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount-2));
+
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount-2));
 
         for (int i=0;i<6;i++)
         {
-          m_vertNormals.push_back(ngl::Vec3(0,0,-1));
+          m_maze.addNormal(ngl::Vec3(0,0,-1));
         }
 
         //Front face
-        m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount+1));
 
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount+1));
 
         for (int i=0;i<6;i++)
         {
-          m_vertNormals.push_back(ngl::Vec3(0,0,1));
+          m_maze.addNormal(ngl::Vec3(0,0,1));
         }
 
         //Left face
-        m_verts.push_back(ngl::Vec3(xCount,0,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,0,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
 
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,0,zCount+1));
+        //ngl::BBox vertWall(xCount, xCount+1, 0.0, 1.0, zCount-2, zCount+1);
 
+        //m_maze.addBBox(vertWall);
         for (int i=0;i<6;i++)
         {
-          m_vertNormals.push_back(ngl::Vec3(-1,0,0));
+          m_maze.addNormal(ngl::Vec3(-1,0,0));
         }
 
         //Right face
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount+1));
 
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount+1,0,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,0,zCount+1));
 
         for (int i=0;i<6;i++)
         {
-          m_vertNormals.push_back(ngl::Vec3(1,0,0));
+          m_maze.addNormal(ngl::Vec3(1,0,0));
         }
 
         //Top face
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
 
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount-2));
-        m_verts.push_back(ngl::Vec3(xCount+1,1,zCount+1));
-        m_verts.push_back(ngl::Vec3(xCount,1,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount-2));
+        m_maze.addVert(ngl::Vec3(xCount+1,1 ,zCount+1));
+        m_maze.addVert(ngl::Vec3(xCount,1 ,zCount+1));
 
         for (int i=0;i<6;i++)
         {
-          m_vertNormals.push_back(ngl::Vec3(0,1,0));
+          m_maze.addNormal(ngl::Vec3(0,1,0));
         }
 
         xCount++;
@@ -628,53 +1137,57 @@ void Maze::generate3DMaze(Grid plan)
       }
     }
   }
+  //partitionSpace(ngl::Vec3(0.0), ngl::Vec3(float(m_width), 0.0, float(m_height)));
 }
 
-void Maze::display3DMaze()
+void Maze::displayMaze(ngl::Camera *camera)
 {
-  ngl::Camera camera;
+ /* ngl::Camera camera;
 
   camera.set(ngl::Vec3(11,60,20), ngl::Vec3(20,0,20), ngl::Vec3(0,1,0));
-  camera.setShape(45.0f, float(720.0/576.0), 0.5f, 100.0f);
+  camera.setShape(45.0f, float(720.0/576.0), 0.5f, 100.0f);*/
 
-  buildVAO();
-  drawVAO(&camera);
+  m_maze.buildVAO();
+  m_maze.drawVAO(camera);
 }
 
-Control::Control()
+/*void Model::partitionSpace(ngl::Vec3 minCorner, ngl::Vec3 maxCorner)
 {
-
-}
-
-void Control::keyDownEvent(const SDL_KeyboardEvent &event)
-{
-
-
-  switch (event.keysym.sym)
+  for (int i=minCorner[0]; i<maxCorner[0]-6; i+=5)
   {
-   /*case SDLK_ESCAPE : quit=true; break;
-    case SDLK_w : glPolygonMode(GL_FRONT_AND_BACK,GL_LINE); break;
-    case SDLK_s : glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); break;*/
-  }
-  /*switch(event.type)
+
+      std::vector<ngl::BBox> BBoxList;
+      ngl::BBox gridSpace(i, i+5, 0.0, 10.0, i, i+5);
+
+      for (int k=0; k<int(m_BBoxes.size()); k++)
       {
-  case SDL_KEYDOWN :
-    {
-      switch (event.key.keysym.sym)
-      {
-        case SDLK_UP : camera.set(ngl::Vec3(10,10,30), ngl::Vec3(7,0,7), ngl::Vec3(0,1,0)); break;
-        case SDLK_LEFT : camera.set(ngl::Vec3(10,20,30), ngl::Vec3(7,0,7), ngl::Vec3(0,1,0)); break;
-        case SDLK_RIGHT : camera.set(ngl::Vec3(10,30,30), ngl::Vec3(7,0,7), ngl::Vec3(0,1,0)); break;
-      }
-    }
-      }
- case SDL_KEYUP :
-  {
-    switch (event.key.keysym.sym)
-    {
-    case
+        if (collisionDetect(m_BBoxes[k], gridSpace))
+        {
+          //BBoxList.push_back(m_BBoxes[k]);
+        }
+
+      m_BBoxGrid[i*i]= BBoxList;
     }
   }
 
 }*/
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
